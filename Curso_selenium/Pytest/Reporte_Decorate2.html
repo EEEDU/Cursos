@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Reporte_Decorate2.html</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>Reporte_Decorate2.html</h1>
+    <p>Report generated on 22-Aug-2023 at 13:08:50 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Summary</h2>
+    <p>1 tests ran in 28.78 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">1 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">1 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">Test25_fixture_decorate2.py::test_dos::teardown</td>
+          <td class="col-duration">11.44</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">+ Exception Group Traceback (most recent call last):<br/>  |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\runner.py&quot;, line 341, in from_call<br/>  |     result: Optional[TResult] = func()<br/>  |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\runner.py&quot;, line 262, in &lt;lambda&gt;<br/>  |     lambda: ihook(item=item, **kwds), when=when, reraise=reraise<br/>  |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\pluggy\_hooks.py&quot;, line 433, in __call__<br/>  |     return self._hookexec(self.name, self._hookimpls, kwargs, firstresult)<br/>  |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\pluggy\_manager.py&quot;, line 112, in _hookexec<br/>  |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)<br/>  |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\pluggy\_callers.py&quot;, line 155, in _multicall<br/>  |     return outcome.get_result()<br/>  |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\pluggy\_result.py&quot;, line 108, in get_result<br/>  |     raise exc.with_traceback(exc.__traceback__)<br/>  |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\pluggy\_callers.py&quot;, line 80, in _multicall<br/>  |     res = hook_impl.function(*args)<br/>  |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\runner.py&quot;, line 182, in pytest_runtest_teardown<br/>  |     item.session._setupstate.teardown_exact(nextitem)<br/>  |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\runner.py&quot;, line 537, in teardown_exact<br/>  |     raise exceptions[0]<br/>  | exceptiongroup.ExceptionGroup: errors while tearing down &lt;Module Test25_fixture_decorate2.py&gt; (2 sub-exceptions)<br/>  +-+---------------- 1 ----------------<br/>    | Traceback (most recent call last):<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\runner.py&quot;, line 526, in teardown_exact<br/>    |     fin()<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\fixtures.py&quot;, line 701, in &lt;lambda&gt;<br/>    |     subrequest.node.addfinalizer(lambda: fixturedef.finish(request=subrequest))<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\fixtures.py&quot;, line 1031, in finish<br/>    |     raise exc<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\fixtures.py&quot;, line 1024, in finish<br/>    |     func()<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\fixtures.py&quot;, line 911, in _teardown_yield_fixture<br/>    |     next(it)<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\Pytest\Test25_fixture_decorate2.py&quot;, line 34, in setup_login_uno<br/>    |     driver.close()<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\selenium\webdriver\remote\webdriver.py&quot;, line 457, in close<br/>    |     self.execute(Command.CLOSE)<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\selenium\webdriver\remote\webdriver.py&quot;, line 346, in execute<br/>    |     self.error_handler.check_response(response)<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\selenium\webdriver\remote\errorhandler.py&quot;, line 245, in check_response<br/>    |     raise exception_class(message, screen, stacktrace)<br/>    | selenium.common.exceptions.InvalidSessionIdException: Message: invalid session id<br/>    | Stacktrace:<br/>    | Backtrace:<br/>    | 	GetHandleVerifier [0x002CA813+48355]<br/>    | 	(No symbol) [0x0025C4B1]<br/>    | 	(No symbol) [0x00165220]<br/>    | 	(No symbol) [0x00187C7C]<br/>    | 	(No symbol) [0x001AA636]<br/>    | 	(No symbol) [0x001A70CD]<br/>    | 	(No symbol) [0x001A6B3A]<br/>    | 	(No symbol) [0x00145311]<br/>    | 	(No symbol) [0x0014571E]<br/>    | 	(No symbol) [0x00145AFA]<br/>    | 	GetHandleVerifier [0x0052AABD+2539405]<br/>    | 	GetHandleVerifier [0x0056A78F+2800735]<br/>    | 	GetHandleVerifier [0x0056456C+2775612]<br/>    | 	GetHandleVerifier [0x003551E0+616112]<br/>    | 	(No symbol) [0x00265F8C]<br/>    | 	(No symbol) [0x00144F64]<br/>    | 	(No symbol) [0x00144912]<br/>    | 	GetHandleVerifier [0x0059159C+2959980]<br/>    | 	BaseThreadInitThunk [0x762C7D59+25]<br/>    | 	RtlInitializeExceptionChain [0x76FDB79B+107]<br/>    | 	RtlClearBits [0x76FDB71F+191]<br/>    | 	(No symbol) [0x00000000]<br/>    | <br/>    +---------------- 2 ----------------<br/>    | Traceback (most recent call last):<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\runner.py&quot;, line 526, in teardown_exact<br/>    |     fin()<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\fixtures.py&quot;, line 701, in &lt;lambda&gt;<br/>    |     subrequest.node.addfinalizer(lambda: fixturedef.finish(request=subrequest))<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\fixtures.py&quot;, line 1031, in finish<br/>    |     raise exc<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\fixtures.py&quot;, line 1024, in finish<br/>    |     func()<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\_pytest\fixtures.py&quot;, line 911, in _teardown_yield_fixture<br/>    |     next(it)<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\Pytest\Test25_fixture_decorate2.py&quot;, line 52, in setup_login_dos<br/>    |     driver.close()<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\selenium\webdriver\remote\webdriver.py&quot;, line 457, in close<br/>    |     self.execute(Command.CLOSE)<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\selenium\webdriver\remote\webdriver.py&quot;, line 346, in execute<br/>    |     self.error_handler.check_response(response)<br/>    |   File &quot;C:\Users\eguerrero\PycharmProjects\Curso_selenium\venv\lib\site-packages\selenium\webdriver\remote\errorhandler.py&quot;, line 245, in check_response<br/>    |     raise exception_class(message, screen, stacktrace)<br/>    | selenium.common.exceptions.InvalidSessionIdException: Message: invalid session id<br/>    | Stacktrace:<br/>    | Backtrace:<br/>    | 	GetHandleVerifier [0x002CA813+48355]<br/>    | 	(No symbol) [0x0025C4B1]<br/>    | 	(No symbol) [0x00165220]<br/>    | 	(No symbol) [0x00187F12]<br/>    | 	(No symbol) [0x001893DD]<br/>    | 	GetHandleVerifier [0x0052AABD+2539405]<br/>    | 	GetHandleVerifier [0x0056A78F+2800735]<br/>    | 	GetHandleVerifier [0x0056456C+2775612]<br/>    | 	GetHandleVerifier [0x003551E0+616112]<br/>    | 	(No symbol) [0x00265F8C]<br/>    | 	(No symbol) [0x00262328]<br/>    | 	(No symbol) [0x0026240B]<br/>    | 	(No symbol) [0x00254FF7]<br/>    | 	BaseThreadInitThunk [0x762C7D59+25]<br/>    | 	RtlInitializeExceptionChain [0x76FDB79B+107]<br/>    | 	RtlClearBits [0x76FDB71F+191]<br/>    | 	(No symbol) [0x00000000]<br/>    | <br/>    +------------------------------------<br/> -----------------------------Captured stdout setup------------------------------ <br/>Escribiendo en el campo //*[@id=&quot;app&quot;]/div[1]/div/div[1]/div/div[2]/div[2]/form/div[1]/div/div[2]/input el texto -&gt; Admin 
+Escribiendo en el campo //*[@id=&quot;app&quot;]/div[1]/div/div[1]/div/div[2]/div[2]/form/div[2]/div/div[2]/input el texto -&gt; admin123 
+Click en el campo //*[@id=&quot;app&quot;]/div[1]/div/div[1]/div/div[2]/div[2]/form/div[3]/button
+Entrando al sistema 2
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Entrando al sistema dos
+Click en el campo //*[@id=&quot;app&quot;]/div[1]/div[1]/aside/nav/div[2]/ul/li[1]/a
+Click en el campo //*[@id=&quot;app&quot;]/div[1]/div[1]/header/div[2]/nav/ul/li[1]/span
+Click en el campo //*[@id=&quot;app&quot;]/div[1]/div[1]/header/div[2]/nav/ul/li[1]/ul/li
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>Salida login 2
+Salida login 1
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Test25_fixture_decorate2.py::test_uno</td>
+          <td class="col-duration">15.19</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stdout setup------------------------------ <br/>Escribiendo en el campo Email el texto -&gt; admin@yourstore.com 
+Escribiendo en el campo Password el texto -&gt; admin 
+Click en el campo /html/body/div[6]/div/div/div/div/div[2]/div[1]/div/form/div[3]/button
+Entrando al sistema 1
+<br/> ------------------------------Captured stdout call------------------------------ <br/>Entrando al sistema uno
+Click en el campo /html/body/div[3]/aside/div/div[4]/div/div/nav/ul/li[4]/a
+Click en el campo /html/body/div[3]/aside/div/div[4]/div/div/nav/ul/li[4]/ul/li[1]/a
+Click en el campo /html/body/div[3]/div[1]/form[1]/div/div/a
+Escribiendo en el campo //*[@id=&quot;Email&quot;] el texto -&gt; asdf@gmail.com 
+Escribiendo en el campo //*[@id=&quot;FirstName&quot;] el texto -&gt; asdf 
+Click en el campo /html/body/div[3]/div[1]/form/div[1]/div/button[1]
+<br/></div></td></tr></tbody></table></body></html>
